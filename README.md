@@ -117,20 +117,22 @@ STATUS: deployed
 REVISION: 1
 TEST SUITE: None
 NOTES:
-** Please be patient while the chart is being deployed **
+** Por favor, seja paciente enquanto o chart está sendo implantado **
 
-The nginx-ingress controller has been installed.
+O controlador nginx-ingress foi instalado.
 
-Get the application URL by running these commands:
+Obtenha o URL do aplicativo executando estes comandos:
 
- NOTE: It may take a few minutes for the LoadBalancer IP to be available.
-        You can watch its status by running 'kubectl get --namespace ingress svc -w ingress-nginx-ingress-controller'
+  NOTA: Pode levar alguns minutos para que o IP do LoadBalancer esteja disponível.
+        Você pode observar seu status executando:
+        
+        kubectl get --namespace ingress svc -w ingress-nginx-ingress-controller
 
-    export SERVICE_IP=$(kubectl get svc --namespace ingress ingress-nginx-ingress-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-    echo "Visit http://${SERVICE_IP} to access your application via HTTP."
-    echo "Visit https://${SERVICE_IP} to access your application via HTTPS."
+        export SERVICE_IP=$(kubectl get svc --namespace ingress ingress-nginx-ingress-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+        echo "Visite http://${SERVICE_IP} para acessar seu aplicativo via HTTP."
+        echo "Visite https://${SERVICE_IP} para acessar seu aplicativo via HTTPS."
 
-An example Ingress that makes use of the controller:
+Um exemplo de Ingress que faz uso do controlador:
 
   apiVersion: extensions/v1beta1
   kind: Ingress
@@ -154,7 +156,7 @@ An example Ingress that makes use of the controller:
             - www.example.com
           secretName: example-tls
 
-If TLS is enabled for the Ingress, a Secret containing the certificate and key must also be provided:
+Se o TLS estiver habilitado para o Ingress, um segredo contendo o certificado e a chave também deverá ser fornecido:
 
   apiVersion: v1
   kind: Secret

@@ -96,7 +96,7 @@ spec:
               path: /v2/
               port: registry
           resources:
-            {}
+          
 ---
 apiVersion: v1
 kind: Service
