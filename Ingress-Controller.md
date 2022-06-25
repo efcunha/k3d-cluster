@@ -28,14 +28,16 @@ $> helm repo update
 $> kubectl create namespace ingress
 ```
 
-Create a namespace for ingress and create a secret with default server certificate
-I use [mkcert](https://github.com/FiloSottile/mkcert) to generate this signed certificates and install CA root in my computer. In this case the certificate matches `*.fuf.me` domains. See mkcert doc for more info.
+Crie um namespace para entrada e crie um segredo com o certificado de servidor padrão
+Eu uso [mkcert](https://github.com/FiloSottile/mkcert) para gerar esses certificados assinados e instalar a raiz da CA no meu computador.
+Neste caso, o certificado corresponde aos domínios `*.fuf.me`.
+Consulte o documento mkcert para obter mais informações.
 
 ```sh
 $> kubectl --namespace ingress create secret tls nginx-server-certs --key fuf.me-key.pem --cert fuf.me.pem
 ```
 
-Create a file to override default values in helm
+Crie um arquivo para substituir os valores padrão no leme
 
 `ingress-values.yml`
 ```yaml
@@ -79,13 +81,13 @@ $> kubectl apply -f  nginx-ingress.yaml
 
 ### Custom domain certificates
 
-If we set TLS configuration in ingress for other domains you need create a secret with certificate values in namespace where you go to deploy ingress.  
+Se definirmos a configuração de TLS no ingresso para outros domínios, você precisará criar um segredo com valores de certificado no namespace onde você vai implantar o ingresso. 
 
 ```sh
 $> kubectl create secret tls example-certs --key example.com.key --cert example.com.pem
 ```
 
-and use it in ingress yaml file
+e use-o no arquivo yaml de entrada
 
 ```yml
 piVersion: networking.k8s.io/v1
@@ -130,22 +132,22 @@ $> kubectl create secret tls nginx-server-certs --key nginx.fuf.me.key --cert ng
 ### Install Cert Manager
 
 ```sh
-# Install the CustomResourceDefinition resources separately
+# Instale os recursos CustomResourceDefinition separadamente
 $> kubectl apply -f https://raw.githubusercontent.com/jetstack/cert-manager/release-0.8/deploy/manifests/00-crds.yaml
 
-# Create the namespace for cert-manager
+# Crie o namespace para cert-manager
 $> kubectl create namespace cert-manager
 
-# Label the cert-manager namespace to disable resource validation
+# Rotule o namespace cert-manager para desabilitar a validação de recursos
 $> kubectl label namespace cert-manager certmanager.k8s.io/disable-validation=true
 
-# Add the Jetstack Helm repository
+# Adicione o repositório Jetstack Helm
 $> helm repo add jetstack https://charts.jetstack.io
 
-# Update your local Helm chart repository cache
+# Atualize o cache do repositório do gráfico Helm local
 $> helm repo update
 
-# Install the cert-manager Helm chart
+# Instale o gráfico Helm do cert-manager
 $> helm install \
   --namespace cert-manager --create-namespace \
   cert-manager jetstack/cert-manager
@@ -248,8 +250,8 @@ spec:
   - www.example.com
 ```
 
-this file generate a secret in namespace with example-com-tls
-this secret is the secret that will be use in ingress file
+este arquivo gera um segredo no namespace com example-com-tls
+este segredo é o segredo que será usado no arquivo de ingress
 
 
 ```yml
@@ -279,34 +281,22 @@ spec:
 
 https://docs.cert-manager.io/en/release-0.8/index.html
 
-
 https://cloud.google.com/kubernetes-engine/docs/how-to/ingress-multi-ssl
-
-
 
 cat <<EOF | helm install --namespace ingress -f - ingress bitnami/nginx-ingress-controller
 extraArgs:
   default-ssl-certificate: "ingress/nginx-server-certs"
 EOF
 
-
 cat <<EOF > tmp-ingress-${CLUSTER_NAME}-values.yaml
 extraArgs:
   default-ssl-certificate: "ingress/nginx-server-certs"
 EOF
 
-
 cat <<EOF > tmp-ingress-values.yaml
 extraArgs:
   default-ssl-certificate: "ingress/nginx-server-certs
 EOF
-
-
-
-
-
-
-
 
 kubectl apply  \
 --namespace=kubernetes-dashboard \
@@ -314,16 +304,9 @@ kubectl apply  \
 --insecure-bind-address=0.0.0.0 \
 -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.0.0/aio/deploy/recommended.yaml
 
+--name my-release
 
-
-
-
-
- --name my-release
-
-
-
- cat <<EOF | kubectl apply -f -
+cat <<EOF | kubectl apply -f -
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

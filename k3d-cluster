@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Instalation variables
+# Configuração variaveis de ambiente
 CLUSTER_DOMAIN=devops.com
 API_PORT=6443
 CLUSTER_NAME=k3d-rancher
@@ -29,7 +29,7 @@ read_value ()
     fi
 }
 
-# Check if exist docker, k3d and kubectl
+# Verifica se existe docker, k3d e kubectl
 checkDependencies ()
 {
     # Check Docker
@@ -46,7 +46,7 @@ checkDependencies ()
     if ! type k3d > /dev/null; then
         echo "K3D could not be found. Installing it ..."
         curl -s https://raw.githubusercontent.com/rancher/k3d/main/install.sh | bash
-        # Install k3d autocompletion for bash
+        # Instale o autocompletar k3d para o bash
         echo "source <(k3d completion bash)" >> ~/.bashrc
         #exit
     fi
@@ -117,7 +117,6 @@ installCluster ()
   footer
 
   header "Criando K3D cluster"
-#https://github.com/rancher/k3d/blob/main/tests/assets/config_test_simple.yaml
   cat <<EOF  > tmp-k3d-${CLUSTER_NAME}.yaml
 apiVersion: k3d.io/v1alpha2
 kind: Simple
@@ -205,18 +204,14 @@ spec:
   hostPath:
     path: "/k3dvol"  
 EOF
-#  kubectl describe pv k3d-pv
   footer
 }
 
 installIngress ()
 {
   header "Instaling Ingress"
-  # Update System
   sudo apt-get update -y
-  # Install dependenci
   sudo apt-get install wget libnss3-tools
-  # Install Mkcert
   curl -JLO "https://dl.filippo.io/mkcert/latest?for=linux/amd64"
   chmod +x mkcert-v*-linux-amd64
   sudo cp mkcert-v*-linux-amd64 /usr/local/bin/mkcert
@@ -226,11 +221,9 @@ installIngress ()
   mkcert ${CLUSTER_DOMAIN} localhost 127.0.0.1 192.168.1.10 ::1
   mv *-key.pem certs/${CLUSTER_DOMAIN}-key.pem
   mv *.pem certs/${CLUSTER_DOMAIN}.pem
-  # Create Namespace
   kubectl create namespace ingress
-  # Create a secret with server certificate
   kubectl --namespace ingress create secret tls nginx-server-certs --key certs/${CLUSTER_DOMAIN}-key.pem --cert certs/${CLUSTER_DOMAIN}.pem
-  # Install ingress with tls enabled providing certificates stored in namespace
+
   cat <<EOF | helm install --namespace ingress -f - ingress bitnami/nginx-ingress-controller
 extraArgs:
   default-ssl-certificate: "ingress/nginx-server-certs"
@@ -258,7 +251,7 @@ installRancher ()
   sleep 20
   kubectl create namespace cattle-system
   sleep 5
-  # Create the certificate secret resource
+
   kubectl -n cattle-system create secret tls tls-rancher-ingress --cert=certs/${CLUSTER_DOMAIN}.pem --key=certs/${CLUSTER_DOMAIN}-key.pem
   sleep 5
 
@@ -269,7 +262,6 @@ installRancher ()
    --set tls=external \
    --set replicas=1
 
-  # Create Ingress controler for Rancher
   cat <<EOF | kubectl apply -f -
   apiVersion: v1
   kind: Service
@@ -306,16 +298,16 @@ EOF
 installDashboard ()
 {
   header "Instaling Dashboard"
-  # Install Kubernetes Dashboard
+
   kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.0.0/aio/deploy/recommended.yaml
-  # Create dashboard account
+
   kubectl create serviceaccount dashboard-admin-sa
-  # bind the dashboard-admin-service-account service account to the cluster-admin role
+
   kubectl create clusterrolebinding dashboard-admin-sa --clusterrole=cluster-admin --serviceaccount=default:dashboard-admin-sa
   
-  # display token
+
   header "Keep this Token to acces dashboard"
-  #kubectl describe secret $(kubectl get secrets | grep dashboard-admin-sa | cut -d' ' -f1)
+
   kubectl describe secret $(kubectl get secrets | grep dashboard-admin-sa | awk '{ print $1 }')
   header "Dashboard Access:"
   echo "kubectl proxy"
@@ -327,16 +319,16 @@ installDashboard ()
 installPrometheus ()
 {
   header "Instaling Prometheus & Grafana"
-  # Install Prometheus
+
   helm install --namespace monitoring --create-namespace prometheus  \
   --set server.global.scrape_interval=30s prometheus-community/prometheus
-  # Install Grafana
+
   helm install --namespace monitoring --create-namespace grafana stable/grafana \
   --set sidecar.datasources.enabled=true --set sidecar.dashboards.enabled=true \
   --set sidecar.datasources.label=grafana_datasource \
   --set sidecar.dashboards.label=grafana_dashboard
-  # Create Ingress controler using server certificates
-  cat <<EOF | kubectl apply -f -
+
+cat <<EOF | kubectl apply -f -
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
