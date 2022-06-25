@@ -274,7 +274,7 @@ e usá-lo em **`PersitentVolumeClaim`**
 
 ### Criar Kubernetes Cluster com LoadBalancer
 
-**NOTE**: **`Master`** and **`Workers`** nodes are renamed to **`Server`** and **`Agents`** resp.
+**OBSERVAÇÃO**: os nós **`Master`** e **`Workers`** foram renomeados para **`Server`** e **`Agents`** respectivamente.
 
 ![LoadBalancer Cluster](assets/k3d-cluster.webp)
 
@@ -366,8 +366,6 @@ options:
   k3s:
     extraServerArgs:
       - --tls-san=127.0.0.1
-#      - --no-deploy=traefik
-#      - --flannel-backend=none      
     extraAgentArgs: []
   kubeconfig:
     updateDefaultKubeconfig: true
@@ -445,20 +443,15 @@ k3d-k3d-cluster-server-0   server         k3d-cluster   running
 k3d-k3d-cluster-serverlb   loadbalancer   k3d-cluster   running
 
 ```
-
-
 #### Start/Stop nodes
 
 Também pode parar ou iniciar nós criados anteriormente com
-
 
 ```sh
 $ k3d node start <nodename>
 $ k3d node stop <nodename>
 ```
-
 k3d create/start/stop/delete node mynode
-
 ### Gerencie seu registro
 
 Criar ou excluir um registro interno local do kubernetes
@@ -467,7 +460,6 @@ Criar ou excluir um registro interno local do kubernetes
 $ k3d registry create REGISTRY_NAME 
 $ k3d registry delete REGISTRY_NAME
 ```
-
 ### Substituir controlador de entrada
 
 O K3D usa o Traefik 1.x versios como controlador do Ingress, devido ao Traefik 2.x ser bastante maduro e fornecer mais funcionalidades, precisamos fazer algum trabalho extra para usar o Traefik.
@@ -489,16 +481,13 @@ spec:
   targetNamespace: kube-system
 ```
 
-
 Agora podemos criar um novo cluster informando ao k3d para não implantar o traefik com
 `--k3s-server-arg '--no-deploy=traefik'` e use o helm chart anterior definido para implantar o novo Traefik Ingress Controller
 `--volume "$(pwd)/helm-ingress-traefik.yaml:/var/lib/rancher/k3s/server/manifests/helm-ingress-traefik.yaml"`
 
-
 ```sh
 $ k3d cluster create traefik --k3s-server-arg '--no-deploy=traefik' --volume "$(pwd)/helm-ingress-traefik.yaml:/var/lib/rancher/k3s/server/manifests/helm-ingress-traefik.yaml"
 ```
-
 ### Entrada de instalação com certificados personalizados
 
 Este script de instalação **`k3d-cluster`**, não instala o ingresso por padrão, mas fornece uma opção (ativada por padrão) para instalar o gráfico **`bitnami/ingress-nginx`** e definir os certificados de ingresso padrão.
@@ -528,7 +517,6 @@ $> mkcert fuf.me "*.fuf.me" fuf.me "*.vcap.me" vcap.me \
 ```
 
 Todos esses domínios apontam para 127.0.0.1
-
 #### Usar vários domínios
 
 Com mkcert você pode criar certificados para vários domínios curinga.
