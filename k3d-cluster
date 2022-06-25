@@ -315,7 +315,6 @@ installDashboard ()
   footer
 }
 
-
 installPrometheus ()
 {
   header "Instaling Prometheus & Grafana"
