@@ -263,18 +263,16 @@ If you provided your own bootstrap password during installation, browse to https
 
 If this is the first time you installed Rancher, get started by running this command and clicking the URL it generates:
 
-```
 echo https://rancher.devops.com/dashboard/?setup=$(kubectl get secret --namespace cattle-system bootstrap-secret -o go-template='{{.data.bootstrapPassword|base64decode}}')
-```
 
 To get just the bootstrap password on its own, run:
 
-```
 kubectl get secret --namespace cattle-system bootstrap-secret -o go-template='{{.data.bootstrapPassword|base64decode}}{{ "\n" }}'
-```
 
 Happy Containering!
+
 service/ranchernp created
+
 -------------------------------------
 Waiting for deployment "rancher" rollout to finish: 0 of 1 updated replicas are available...
 Waiting for deployment spec update to be observed...
@@ -284,6 +282,7 @@ NAME      READY   UP-TO-DATE   AVAILABLE   AGE
 rancher   1/1     1            1           96s
 acesso ao Rancher https://127.0.0.1:8901 ou https://rancher.xxxx.com:8901
 -------------------------------------
+
 Install Dashbard? (Yes/No) [No]:
 Install Prometheus? (Yes/No) [No]:
 ```
