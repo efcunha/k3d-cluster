@@ -769,17 +769,40 @@ $ curl -k https://localhost
 
 $ kubectl cluster-info && kubectl get nodes && kubectl get pods --all-namespaces
 
-NAMESPACE     NAME                                      READY   STATUS      RESTARTS   AGE    IP          NODE                       NOMINATED NODE   READINESS GATES
-kube-system   metrics-server-86cbb8457f-5bpzr           1/1     Running     0          78m    10.42.0.3   k3d-dev-cluster-server-0   <none$           <none>
-kube-system   local-path-provisioner-7c458769fb-hd2cc   1/1     Running     0          78m    10.42.1.3   k3d-dev-cluster-agent-0    <none$           <none>
-kube-system   helm-install-traefik-4qh5z                0/1     Completed   0          78m    10.42.0.2   k3d-dev-cluster-server-0   <none$           <none>
-kube-system   coredns-854c77959c-jmp94                  1/1     Running     0          78m    10.42.1.2   k3d-dev-cluster-agent-0    <none$           <none>
-kube-system   svclb-traefik-6ch8f                       2/2     Running     0          78m    10.42.0.4   k3d-dev-cluster-server-0   <none$           <none>
-kube-system   svclb-traefik-9tmk4                       2/2     Running     0          78m    10.42.1.4   k3d-dev-cluster-agent-0    <none$           <none>
-kube-system   svclb-traefik-h8vgj                       2/2     Running     0          78m    10.42.2.3   k3d-dev-cluster-agent-1    <none$           <none>
-kube-system   traefik-6f9cbd9bd4-6bjp4                  1/1     Running     0          78m    10.42.2.2   k3d-dev-cluster-agent-1    <none$           <none>
-default       nginx-6799fc88d8-vcjp5                    1/1     Running     0          29m    10.42.2.4   k3d-dev-cluster-agent-1    <none$           <none>
+Kubernetes control plane is running at https://0.0.0.0:6443
+CoreDNS is running at https://0.0.0.0:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+Metrics-server is running at https://0.0.0.0:6443/api/v1/namespaces/kube-system/services/https:metrics-server:https/proxy
+
+To further debug and diagnose cluster problems, use 'kubectl cluster-info dump'.
+
+NAME                       STATUS   ROLES                  AGE   VERSION
+k3d-k3d-rancher-agent-0    Ready    <none>                 15m   v1.21.13+k3s1
+k3d-k3d-rancher-agent-1    Ready    <none>                 15m   v1.21.13+k3s1
+k3d-k3d-rancher-server-0   Ready    control-plane,master   15m   v1.21.13+k3s1
+
+NAMESPACE                   NAME                                                              READY   STATUS      RESTARTS   AGE
+kube-system                 local-path-provisioner-84bb864455-nf86p                           1/1     Running     0          15m
+kube-system                 metrics-server-ff9dbcb6c-d6d9n                                    1/1     Running     0          15m
+kube-system                 coredns-574bcc6c46-tgchp                                          1/1     Running     0          15m
+ingress                     svclb-ingress-nginx-ingress-controller-pbt5z                      2/2     Running     0          9m26s
+ingress                     svclb-ingress-nginx-ingress-controller-jg7rm                      2/2     Running     0          9m26s
+ingress                     svclb-ingress-nginx-ingress-controller-9x6f8                      2/2     Running     0          9m26s
+ingress                     ingress-nginx-ingress-controller-default-backend-6dcc7fb4ckqn4b   1/1     Running     0          9m26s
+ingress                     ingress-nginx-ingress-controller-6c675cf787-kh2t8                 1/1     Running     0          9m26s
+cert-manager                cert-manager-5bb7949947-2dxn7                                     1/1     Running     0          5m1s
+cert-manager                cert-manager-cainjector-5ff98c66d-w9phm                           1/1     Running     0          5m1s
+cert-manager                cert-manager-webhook-fb48856b5-lnbbj                              1/1     Running     0          5m1s
+cattle-system               rancher-865f7d9454-8flbw                                          1/1     Running     0          4m10s
+cattle-system               helm-operation-fcczj                                              0/2     Completed   0          2m27s
+cattle-fleet-system         gitjob-cc9948fd7-mwtgg                                            1/1     Running     0          100s
+cattle-fleet-system         fleet-controller-5746685958-x6g7d                                 1/1     Running     0          100s
+cattle-system               helm-operation-t9tm2                                              0/2     Completed   0          2m1s
+cattle-system               rancher-webhook-6958cfcddf-f9488                                  1/1     Running     0          84s
+cattle-system               helm-operation-ql9jt                                              0/2     Completed   0          87s
+cattle-fleet-local-system   fleet-agent-57497ff7dc-f59hk                                      1/1     Running     0          70s
+
 $ kubectl scale deployment nginx --replicas 4
+
 $ kubectl get po --all-namespaces -o wide
 ```
 

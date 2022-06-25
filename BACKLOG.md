@@ -20,7 +20,7 @@
 ## BACKLOG
 
 * Configure o painel do k8s com o Ingress
-* Instale o Rancher (https://gist.github.com/rafi/d4440661e7de208009701ca3627caa1d)
+* Instale o Rancher 
 * Altere o Ingress para o Traefik v2 / Ingress
 Por padrão, o k3s vem com o Traefik v1 como o controlador de ingresso padrão, na maioria das vezes eu prefiro trazer meu próprio controlador de ingresso, minha escolha pessoal é ingress-nginx porque é bastante simples e fácil de usar (e também uma brisa para configurar certificados TLS via cert-manager. (https://gist.github.com/rafi/d4440661e7de208009701ca3627caa1d)(https://royportas.com/posts/2020-11-20-setting-up-k3s-and-k3d/) (https ://codeburst.io/creating-a-local-development-kubernetes-cluster-with-k3s-and-traefik-proxy-7a5033cb1c2d)
 * Mude Flanel para Calico (https://k3d.io/usage/guides/calico/)
