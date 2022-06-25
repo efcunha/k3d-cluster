@@ -309,7 +309,7 @@ Você também pode expor um intervalo NodePort (se quiser evitar o Ingress Contr
 
 **Aviso**: mapear uma ampla variedade de portas pode levar algum tempo, e seu computador pode travar por algum tempo nesse processo.
 
-#### Arquivo de configuração
+#### Exemplo Arquivo de configuração
 
 K3D permite criar cluster usando arquivos de configuração
 
@@ -696,32 +696,33 @@ EOF
 ```
 
 
-Once all is installed we can retrieve Grafana credentials to login with `admin` user.
+Uma vez que tudo esteja instalado, podemos recuperar as credenciais do Grafana para fazer login com o usuário `admin`.
 
 ```sh
 $ kubectl get secret --namespace prometheus grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
 ```
 
-Now we can access Grafana and configure prometheus as  datasource for cluster metrics
+Agora podemos acessar o Grafana e configurar o prometheus como fonte de dados para métricas de cluster
 
 ![Grafana Configuration](assets/grafana-config.png)
 
-Once installed Grafana you can importa lots of dashboards avaliable at:
+Uma vez instalado o Grafana, você pode importar muitos painéis disponíveis em:
+
 <https://grafana.com/grafana/dashboards?>
 
-A nice dashboards cluster could be:
+Um bom cluster de painéis poderia ser:
 <https://grafana.com/grafana/dashboards/11802>
 <https://grafana.com/grafana/dashboards/1860>
 <https://grafana.com/grafana/dashboards/5219>
 <https://grafana.com/grafana/dashboards/7249>
 <https://grafana.com/grafana/dashboards/13770>
 
-### Deploy portainer
+### Instalar portainer
 
 ```sh
 $ kubectl apply -f https://raw.githubusercontent.com/portainer/portainer-k8s/master/portainer.yaml
 ```
-Once portainer is deployed you can access thought loadbalancer
+Depois que o portainer for implantado, você poderá acessar por meio do balanceador de carga
 
 ```sh
 $ kubectl -n portainer get svc
@@ -759,12 +760,15 @@ spec:
               number: 80
 ```
 
-Testing deployments:
+Testando implantações:
 
 ```sh
 $ curl localhost
+
 $ curl -k https://localhost          
-$ kubectl get po --all-namespaces -o wide
+
+$ kubectl cluster-info && kubectl get nodes && kubectl get pods --all-namespaces
+
 NAMESPACE     NAME                                      READY   STATUS      RESTARTS   AGE    IP          NODE                       NOMINATED NODE   READINESS GATES
 kube-system   metrics-server-86cbb8457f-5bpzr           1/1     Running     0          78m    10.42.0.3   k3d-dev-cluster-server-0   <none$           <none>
 kube-system   local-path-provisioner-7c458769fb-hd2cc   1/1     Running     0          78m    10.42.1.3   k3d-dev-cluster-agent-0    <none$           <none>
