@@ -32,50 +32,65 @@ Todas as senhas e informações necessárias serão exibidas no terminal.
 
 ```sh
 $> ./k3d-cluster 
-Cluster Name [k3d-cluster]: 
-Cluster Domain [fuf.me]: 
-API Port [6443]: 
-Servers (Masters) [1]: 
+Nome Cluster [k3d-rancher]:
+Cluster Domain [devops.com]:
+Porta API [6443]:
+Servers (Masters) [1]:
 Agents (Workers) [1]: 2
-LoadBalancer HTTP Port [80]: 
-LoadBalancer HTTPS Port [443]: 
 
 
-Deleting Previous Cluster
+Deletando Previous Cluster
 -------------------------------------
-INFO[0000] No clusters found                            
+INFO[0000] Deleting cluster 'k3d-rancher'
+INFO[0009] Deleting cluster network 'k3d-k3d-rancher'
+INFO[0009] Deleting 2 attached volumes...
+WARN[0009] Failed to delete volume 'k3d-k3d-rancher-images' of cluster 'k3d-rancher': failed to find volume 'k3d-k3d-rancher-images': Error: No such volume: k3d-k3d-rancher-images -> Try to delete it manually
+INFO[0009] Removing cluster details from default kubeconfig...
+INFO[0009] Removing standalone kubeconfig file (if there is one)...
+INFO[0009] Successfully deleted cluster k3d-rancher!
 -------------------------------------
 
 
-Creating K3D cluster
+Criando K3D cluster
 -------------------------------------
-INFO[0000] Using config file tmp-k3d-k3d-cluster.yaml   
-INFO[0000] Prep: Network                                
-INFO[0000] Created network 'k3d-k3d-cluster'            
-INFO[0000] Created volume 'k3d-k3d-cluster-images'      
-INFO[0001] Creating node 'k3d-k3d-cluster-server-0'     
-INFO[0001] Creating node 'k3d-k3d-cluster-agent-0'      
-INFO[0001] Creating node 'k3d-k3d-cluster-agent-1'      
-INFO[0001] Creating LoadBalancer 'k3d-k3d-cluster-serverlb' 
-INFO[0001] Starting cluster 'k3d-cluster'               
-INFO[0001] Starting servers...                          
-INFO[0001] Starting Node 'k3d-k3d-cluster-server-0'     
-INFO[0007] Starting agents...                           
-INFO[0007] Starting Node 'k3d-k3d-cluster-agent-0'      
-INFO[0015] Starting Node 'k3d-k3d-cluster-agent-1'      
-INFO[0023] Starting helpers...                          
-INFO[0023] Starting Node 'k3d-k3d-cluster-serverlb'     
-INFO[0025] (Optional) Trying to get IP of the docker host and inject it into the cluster as 'host.k3d.internal' for easy access 
-INFO[0030] Successfully added host record to /etc/hosts in 4/4 nodes and to the CoreDNS ConfigMap 
-INFO[0030] Cluster 'k3d-cluster' created successfully!  
-INFO[0030] --kubeconfig-update-default=false --> sets --kubeconfig-switch-context=false 
-INFO[0030] You can now use it like this:                
-kubectl config use-context k3d-k3d-cluster
+INFO[0000] Using config file tmp-k3d-k3d-rancher.yaml (k3d.io/v1alpha2#simple)
+WARN[0000] Default config apiVersion is 'k3d.io/v1alpha4', but you're using 'k3d.io/v1alpha2': consider migrating.
+INFO[0000] portmapping '0.0.0.0:80:80' targets the loadbalancer: defaulting to [servers:*:proxy agents:*:proxy]
+INFO[0000] portmapping '0.0.0.0:443:443' targets the loadbalancer: defaulting to [servers:*:proxy agents:*:proxy]
+INFO[0000] portmapping '0.0.0.0:8900:30080' targets the loadbalancer: defaulting to [servers:*:proxy agents:*:proxy]
+INFO[0000] portmapping '0.0.0.0:8901:30081' targets the loadbalancer: defaulting to [servers:*:proxy agents:*:proxy]
+INFO[0000] portmapping '0.0.0.0:8902:30082' targets the loadbalancer: defaulting to [servers:*:proxy agents:*:proxy]
+INFO[0000] Prep: Network
+INFO[0000] Created network 'k3d-k3d-rancher'
+INFO[0000] Created image volume k3d-k3d-rancher-images
+INFO[0000] Starting new tools node...
+INFO[0000] Starting Node 'k3d-k3d-rancher-tools'
+INFO[0001] Creating node 'k3d-k3d-rancher-server-0'
+INFO[0001] Creating node 'k3d-k3d-rancher-agent-0'
+INFO[0001] Creating node 'k3d-k3d-rancher-agent-1'
+INFO[0001] Creating LoadBalancer 'k3d-k3d-rancher-serverlb'
+INFO[0001] Using the k3d-tools node to gather environment information
+INFO[0002] HostIP: using network gateway 192.168.80.1 address
+INFO[0002] Starting cluster 'k3d-rancher'
+INFO[0002] Starting servers...
+INFO[0002] Starting Node 'k3d-k3d-rancher-server-0'
+INFO[0009] Starting agents...
+INFO[0012] Starting Node 'k3d-k3d-rancher-agent-0'
+INFO[0013] Starting Node 'k3d-k3d-rancher-agent-1'
+INFO[0021] Starting helpers...
+INFO[0021] Starting Node 'k3d-k3d-rancher-serverlb'
+INFO[0028] Injecting records for hostAliases (incl. host.k3d.internal) and for 4 network members into CoreDNS configmap...
+INFO[0031] Cluster 'k3d-rancher' created successfully!
+INFO[0031] You can now use it like this:
 kubectl cluster-info
-Switched to context "k3d-k3d-cluster".
+
+
+waiting for cluster init ...
+-------------------------------------
+Switched to context "k3d-k3d-rancher".
 Kubernetes control plane is running at https://0.0.0.0:6443
 CoreDNS is running at https://0.0.0.0:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
-Metrics-server is running at https://0.0.0.0:6443/api/v1/namespaces/kube-system/services/https:metrics-server:/proxy
+Metrics-server is running at https://0.0.0.0:6443/api/v1/namespaces/kube-system/services/https:metrics-server:https/proxy
 
 To further debug and diagnose cluster problems, use 'kubectl cluster-info dump'.
 -------------------------------------
@@ -84,85 +99,108 @@ To further debug and diagnose cluster problems, use 'kubectl cluster-info dump'.
 Provisioning Persistent Volume
 -------------------------------------
 persistentvolume/k3d-pv created
-Name:            k3d-pv
-Labels:          type=local
-Annotations:     <none>
-Finalizers:      [kubernetes.io/pv-protection]
-StorageClass:    manual
-Status:          Available
-Claim:           
-Reclaim Policy:  Retain
-Access Modes:    RWO
-VolumeMode:      Filesystem
-Capacity:        50Gi
-Node Affinity:   <none>
-Message:         
-Source:
-    Type:          HostPath (bare host directory volume)
-    Path:          /tmp/k3dvol
-    HostPathType:  
-Events:            <none>
 -------------------------------------
-Install Ingress? (Yes/No) [Yes]: 
+Install Ingress? (Yes/No) [Yes]:
 
 
 Instaling Ingress
 -------------------------------------
+Atingido:1 https://download.docker.com/linux/ubuntu jammy InRelease
+Atingido:2 http://br.archive.ubuntu.com/ubuntu jammy InRelease
+Atingido:3 http://security.ubuntu.com/ubuntu jammy-security InRelease
+Atingido:4 http://br.archive.ubuntu.com/ubuntu jammy-updates InRelease
+Atingido:5 http://br.archive.ubuntu.com/ubuntu jammy-backports InRelease
+Lendo listas de pacotes... Pronto
+Lendo listas de pacotes... Pronto
+Construindo árvore de dependências... Pronto
+Lendo informação de estado... Pronto
+wget já é a versão mais recente (1.21.2-2ubuntu1).
+libnss3-tools já é a versão mais recente (2:3.68.2-0ubuntu1).
+0 pacotes atualizados, 0 pacotes novos instalados, 0 a serem removidos e 0 não atualizados.
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100   123  100   123    0     0    262      0 --:--:-- --:--:-- --:--:--   262
+  0     0    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0
+Warning: Failed to create the file mkcert-v1.4.4-linux-amd64: Arquivo existe
+  0     0    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0
+curl: (23) Failed writing header
+The local CA is already installed in the system trust store! 👍
+ERROR: no Firefox and/or Chrome/Chromium security databases found
+
+/home/efcunha/.local/share/mkcert
+Note: the local CA is not installed in the Firefox and/or Chrome/Chromium trust store.
+Run "mkcert -install" for certificates to be trusted automatically ⚠️
+
+Created a new certificate valid for the following names 📜
+ - "devops.com"
+ - "localhost"
+ - "127.0.0.1"
+ - "192.168.1.10"
+ - "::1"
+
+The certificate is at "./devops.com+4.pem" and the key at "./devops.com+4-key.pem" ✅
+
+It will expire on 25 September 2024 🗓
+
 namespace/ingress created
 secret/nginx-server-certs created
 NAME: ingress
-LAST DEPLOYED: Tue Mar  9 19:30:47 2021
+LAST DEPLOYED: Sat Jun 25 16:22:11 2022
 NAMESPACE: ingress
 STATUS: deployed
 REVISION: 1
 TEST SUITE: None
 NOTES:
-** Por favor, seja paciente enquanto o chart está sendo implantado **
+CHART NAME: nginx-ingress-controller
+CHART VERSION: 9.2.13
+APP VERSION: 1.2.1
 
-O controlador nginx-ingress foi instalado.
+** Please be patient while the chart is being deployed **
 
-Obtenha o URL do aplicativo executando estes comandos:
+The nginx-ingress controller has been installed.
 
-  NOTA: Pode levar alguns minutos para que o IP do LoadBalancer esteja disponível.
-        Você pode observar seu status executando:
-        
-        kubectl get --namespace ingress svc -w ingress-nginx-ingress-controller
+Get the application URL by running these commands:
 
-        export SERVICE_IP=$(kubectl get svc --namespace ingress ingress-nginx-ingress-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-        echo "Visite http://${SERVICE_IP} para acessar seu aplicativo via HTTP."
-        echo "Visite https://${SERVICE_IP} para acessar seu aplicativo via HTTPS."
+ NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+        You can watch its status by running 'kubectl get --namespace ingress svc -w ingress-nginx-ingress-controller'
 
-Um exemplo de Ingress que faz uso do controlador:
+    export SERVICE_IP=$(kubectl get svc --namespace ingress ingress-nginx-ingress-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+    echo "Visit http://${SERVICE_IP} to access your application via HTTP."
+    echo "Visit https://${SERVICE_IP} to access your application via HTTPS."
 
-  apiVersion: extensions/v1beta1
+An example Ingress that makes use of the controller:
+
+  apiVersion: networking.k8s.io/v1
   kind: Ingress
   metadata:
-    annotations:
-      kubernetes.io/ingress.class: nginx
     name: example
-    namespace: foo
+    namespace: ingress
   spec:
+    ingressClassName: nginx
     rules:
       - host: www.example.com
         http:
           paths:
             - backend:
-                serviceName: exampleService
-                port: 80
+                service:
+                  name: example-service
+                  port:
+                    number: 80
               path: /
+              pathType: Prefix
     # This section is only required if TLS is to be enabled for the Ingress
     tls:
         - hosts:
             - www.example.com
           secretName: example-tls
 
-Se o TLS estiver habilitado para o Ingress, um segredo contendo o certificado e a chave também deverá ser fornecido:
+If TLS is enabled for the Ingress, a Secret containing the certificate and key must also be provided:
 
   apiVersion: v1
   kind: Secret
   metadata:
     name: example-tls
-    namespace: foo
+    namespace: ingress
   data:
     tls.crt: <base64 encoded cert>
     tls.key: <base64 encoded key>
@@ -173,14 +211,83 @@ Se o TLS estiver habilitado para o Ingress, um segredo contendo o certificado e 
 LoadBalancer info:
 -------------------------------------
 NAME                                               TYPE           CLUSTER-IP     EXTERNAL-IP   PORT(S)                      AGE
-ingress-nginx-ingress-controller                   LoadBalancer   10.43.22.225   <pending>     80:31286/TCP,443:31747/TCP   5s
+ingress-nginx-ingress-controller                   LoadBalancer   10.43.47.253   <pending>     80:32068/TCP,443:32384/TCP   5s
+acesso ao Nginx https://127.0.0.1 ou https://nginx.xxxx.com
 -------------------------------------
-Install Dashbard? (Yes/No) [No]: 
-Install Prometheus? (Yes/No) [No]:
+Install Rancher? (Yes/No) [Yes]:
+customresourcedefinition.apiextensions.k8s.io/certificaterequests.cert-manager.io created
+customresourcedefinition.apiextensions.k8s.io/certificates.cert-manager.io created
+customresourcedefinition.apiextensions.k8s.io/challenges.acme.cert-manager.io created
+customresourcedefinition.apiextensions.k8s.io/clusterissuers.cert-manager.io created
+customresourcedefinition.apiextensions.k8s.io/issuers.cert-manager.io created
+customresourcedefinition.apiextensions.k8s.io/orders.acme.cert-manager.io created
+namespace/cert-manager created
+NAME: cert-manager
+LAST DEPLOYED: Sat Jun 25 16:26:35 2022
+NAMESPACE: cert-manager
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+NOTES:
+cert-manager v1.8.2 has been deployed successfully!
+
+In order to begin issuing certificates, you will need to set up a ClusterIssuer
+or Issuer resource (for example, by creating a 'letsencrypt-staging' issuer).
+
+More information on the different types of issuers and how to configure them
+can be found in our documentation:
+
+https://cert-manager.io/docs/configuration/
+
+For information on how to configure cert-manager to automatically provision
+Certificates for Ingress resources, take a look at the `ingress-shim`
+documentation:
+
+https://cert-manager.io/docs/usage/ingress/
+namespace/cattle-system created
+secret/tls-rancher-ingress created
+NAME: rancher
+LAST DEPLOYED: Sat Jun 25 16:27:27 2022
+NAMESPACE: cattle-system
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+NOTES:
+Rancher Server has been installed.
+
+NOTE: Rancher may take several minutes to fully initialize. Please standby while Certificates are being issued, Containers are started and the Ingress rule comes up.
+
+Check out our docs at https://rancher.com/docs/
+
+If you provided your own bootstrap password during installation, browse to https://rancher.devops.com to get started.
+
+If this is the first time you installed Rancher, get started by running this command and clicking the URL it generates:
+
+```
+echo https://rancher.devops.com/dashboard/?setup=$(kubectl get secret --namespace cattle-system bootstrap-secret -o go-template='{{.data.bootstrapPassword|base64decode}}')
 ```
 
-## Instalar Software
+To get just the bootstrap password on its own, run:
 
+```
+kubectl get secret --namespace cattle-system bootstrap-secret -o go-template='{{.data.bootstrapPassword|base64decode}}{{ "\n" }}'
+```
+
+Happy Containering!
+service/ranchernp created
+-------------------------------------
+Waiting for deployment "rancher" rollout to finish: 0 of 1 updated replicas are available...
+Waiting for deployment spec update to be observed...
+Waiting for deployment "rancher" rollout to finish: 0 of 1 updated replicas are available...
+deployment "rancher" successfully rolled out
+NAME      READY   UP-TO-DATE   AVAILABLE   AGE
+rancher   1/1     1            1           96s
+acesso ao Rancher https://127.0.0.1:8901 ou https://rancher.xxxx.com:8901
+-------------------------------------
+Install Dashbard? (Yes/No) [No]:
+Install Prometheus? (Yes/No) [No]:
+```
+## Instalar Software
 ### Instalar Docker
 
 ```sh
