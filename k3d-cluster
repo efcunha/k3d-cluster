@@ -82,10 +82,10 @@ checkDependencies ()
         # Add Rancher helm repos
         helm repo add rancher-latest https://releases.rancher.com/server-charts/latest
         # Add jetstack helm repos
-	helm repo add jetstack https://charts.jetstack.io
+	    helm repo add jetstack https://charts.jetstack.io
         # Add Jenkins helm repos
-	helm repo add jenkins https://raw.githubusercontent.com/jenkinsci/kubernetes-operator/master/chart
-	# Update helm
+	    helm repo add jenkins https://raw.githubusercontent.com/jenkinsci/kubernetes-operator/master/chart
+	    # Update helm
         helm repo update
         #exit
     fi
