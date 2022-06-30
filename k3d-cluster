@@ -1,15 +1,19 @@
 #!/bin/sh
 
-# Configuração variaveis de ambiente
-CLUSTER_DOMAIN=devops.com
+# Instalation variables
+CLUSTER_DOMAIN=edson-devops.eti.br
 API_PORT=6443
 CLUSTER_NAME=k3d-rancher
 READ_VALUE=
 SERVERS=1
 AGENTS=1
 TRAEFIK_V2=Yes
-INSTALL_INGRESS=Yes
-INSTALL_RANCHER=Yes
+TRAEFIK_LABEL="app.kubernetes.io/instance=traefik"
+INSTALL_PVP=Yes
+INSTALL_CERTMANAGER=Yes
+INSTALL_TRAEFIK=No
+INSTALL_INGRESS=No
+INSTALL_RANCHER=No
 INSTALL_DASHBOARD=No
 INSTALL_PROMETHEUS=No
 
@@ -29,7 +33,7 @@ read_value ()
     fi
 }
 
-# Verifica se existe docker, k3d e kubectl
+# Check if exist docker, k3d and kubectl
 checkDependencies ()
 {
     # Check Docker
@@ -46,7 +50,7 @@ checkDependencies ()
     if ! type k3d > /dev/null; then
         echo "K3D could not be found. Installing it ..."
         curl -s https://raw.githubusercontent.com/rancher/k3d/main/install.sh | bash
-        # Instale o autocompletar k3d para o bash
+        # Install k3d autocompletion for bash
         echo "source <(k3d completion bash)" >> ~/.bashrc
         #exit
     fi
@@ -67,7 +71,6 @@ checkDependencies ()
         curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
         chmod +x ./get_helm.sh
         ./get_helm.sh
-        
         # Add default repos
         helm repo add stable https://charts.helm.sh/stable
         # Add kubernetes-dashboard repository
@@ -79,8 +82,10 @@ checkDependencies ()
         # Add Rancher helm repos
         helm repo add rancher-latest https://releases.rancher.com/server-charts/latest
         # Add jetstack helm repos
-	      helm repo add jetstack https://charts.jetstack.io
-        # Update helm
+	helm repo add jetstack https://charts.jetstack.io
+        # Add Jenkins helm repos
+	helm repo add jenkins https://raw.githubusercontent.com/jenkinsci/kubernetes-operator/master/chart
+	# Update helm
         helm repo update
         #exit
     fi
@@ -117,6 +122,7 @@ installCluster ()
   footer
 
   header "Criando K3D cluster"
+#https://github.com/rancher/k3d/blob/main/tests/assets/config_test_simple.yaml
   cat <<EOF  > tmp-k3d-${CLUSTER_NAME}.yaml
 apiVersion: k3d.io/v1alpha2
 kind: Simple
@@ -150,7 +156,6 @@ ports:
   - port: 0.0.0.0:8902:30082
     nodeFilters:
       - loadbalancer
-
 env:
   - envVar: secret=token
     nodeFilters:
@@ -181,13 +186,16 @@ EOF
   k3d cluster create --config tmp-k3d-${CLUSTER_NAME}.yaml
 
   header "waiting for cluster init ..."
-  sleep 5    
+  sleep 5
 
   kubectl config use-context k3d-${CLUSTER_NAME}
   kubectl cluster-info
   footer
+}
 
-  header "Provisioning Persistent Volume"
+installPVP ()
+{
+  header "Provisionando Volume Persistente"
   cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: PersistentVolume
@@ -202,28 +210,131 @@ spec:
   accessModes:
     - ReadWriteOnce
   hostPath:
-    path: "/k3dvol"  
+    path: "/k3dvol"
 EOF
+
+  cat <<EOF | kubectl delete -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: local-path-provisioner-role
+rules:
+  - apiGroups: [ "" ]
+    resources: [ "nodes", "persistentvolumeclaims", "configmaps" ]
+    verbs: [ "get", "list", "watch" ]
+  - apiGroups: [ "" ]
+    resources: [ "endpoints", "persistentvolumes", "pods" ]
+    verbs: [ "*" ]
+  - apiGroups: [ "" ]
+    resources: [ "events" ]
+    verbs: [ "create", "patch" ]
+  - apiGroups: [ "storage.k8s.io" ]
+    resources: [ "storageclasses" ]
+    verbs: [ "get", "list", "watch" ]
+EOF
+
+  cat <<EOF | kubectl delete -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: local-path-provisioner-bind
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: local-path-provisioner-role
+subjects:
+  - kind: ServiceAccount
+    name: local-path-provisioner-service-account
+    namespace: local-path-storage
+EOF
+
+  cat <<EOF | kubectl delete -f -
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-path
+provisioner: rancher.io/local-path
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete
+EOF
+
+#  kubectl describe pv k3d-pv
+  curl -LO  https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
+  sleep 5
+  kubectl apply -f local-path-storage.yaml
+  sleep 5
+  kubectl patch storageclass local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
   footer
 }
 
-installIngress ()
+installCertManager ()
 {
-  header "Instaling Ingress"
+  header "Instalando Cert-Manager"
+  # Update System
   sudo apt-get update -y
+
+  # Install dependenci
   sudo apt-get install wget libnss3-tools
+
+  # Install Mkcert
   curl -JLO "https://dl.filippo.io/mkcert/latest?for=linux/amd64"
   chmod +x mkcert-v*-linux-amd64
   sudo cp mkcert-v*-linux-amd64 /usr/local/bin/mkcert
   mkcert -install
   mkcert -CAROOT
+
   # Criar certificados
   mkcert ${CLUSTER_DOMAIN} localhost 127.0.0.1 192.168.1.10 ::1
   mv *-key.pem certs/${CLUSTER_DOMAIN}-key.pem
   mv *.pem certs/${CLUSTER_DOMAIN}.pem
-  kubectl create namespace ingress
-  kubectl --namespace ingress create secret tls nginx-server-certs --key certs/${CLUSTER_DOMAIN}-key.pem --cert certs/${CLUSTER_DOMAIN}.pem
+  sleep 10
 
+  # Create Namespace
+  kubectl create namespace ingress
+
+  # Create a secret with server certificate
+  kubectl --namespace ingress create secret tls server-certs --key certs/${CLUSTER_DOMAIN}-key.pem --cert certs/${CLUSTER_DOMAIN}.pem
+  sleep 5
+
+  kubectl apply --validate=false -f https://github.com/cert-manager/cert-manager/releases/download/v1.8.2/cert-manager.crds.yaml
+  sleep 5
+
+  kubectl create namespace cert-manager
+  sleep 5
+
+  helm install \
+  cert-manager jetstack/cert-manager \
+    --namespace cert-manager \
+    --version v1.8.2
+  sleep 20
+
+  kubectl create namespace cattle-system
+  sleep 5
+
+  # Create the certificate secret resource
+  kubectl -n cattle-system create secret tls tls-rancher-ingress --cert=certs/${CLUSTER_DOMAIN}.pem --key=certs/${CLUSTER_DOMAIN}-key.pem
+  sleep 5
+}
+
+installTraefik ()
+{
+  header "Instalando Traefik Ingress"
+  # Install Traefik V2
+  helm install traefik traefik/traefik
+  sleep 20
+  footer
+  # Expose Traefik Dashboard
+  kubectl expose deploy/traefik -n default --port=9000 --target-port=9000 --name=traefik-dashboard
+  kubectl create ingress traefik-dashboard --rule="traefik.${CLUSTER_DOMAIN}/*=traefik-dashboard:9000"
+  sleep 5
+  echo "You can reach Traefik dashbaord by: http://localhost/dashboard/ ou  http://traefik.dominio.com.br/dashboard/"
+  footer
+}
+
+installIngress ()
+{
+  header "Instalando Nginx Ingress"
+  # Install ingress with tls enabled providing certificates stored in namespace
   cat <<EOF | helm install --namespace ingress -f - ingress bitnami/nginx-ingress-controller
 extraArgs:
   default-ssl-certificate: "ingress/nginx-server-certs"
@@ -239,22 +350,7 @@ EOF
 
 installRancher ()
 {
-  
-  kubectl apply --validate=false -f https://github.com/cert-manager/cert-manager/releases/download/v1.8.2/cert-manager.crds.yaml
-  sleep 5
-  kubectl create namespace cert-manager
-  sleep 5
-  helm install \
-    cert-manager jetstack/cert-manager \
-    --namespace cert-manager \
-    --version v1.8.2
-  sleep 20
-  kubectl create namespace cattle-system
-  sleep 5
-
-  kubectl -n cattle-system create secret tls tls-rancher-ingress --cert=certs/${CLUSTER_DOMAIN}.pem --key=certs/${CLUSTER_DOMAIN}-key.pem
-  sleep 5
-
+  header "Instalando Rancher UI"
   helm install rancher rancher-latest/rancher \
    --namespace cattle-system \
    --set hostname=rancher.${CLUSTER_DOMAIN} \
@@ -262,6 +358,7 @@ installRancher ()
    --set tls=external \
    --set replicas=1
 
+  # Create Ingress controler for Rancher
   cat <<EOF | kubectl apply -f -
   apiVersion: v1
   kind: Service
@@ -286,10 +383,8 @@ installRancher ()
       app: rancher
     type: NodePort
 EOF
-  footer
   sleep 5
   kubectl -n cattle-system rollout status deploy/rancher
-  sleep 5
   kubectl -n cattle-system get deploy rancher
   echo "acesso ao Rancher https://127.0.0.1:8901 ou https://rancher.xxxx.com:8901"
   footer
@@ -298,16 +393,16 @@ EOF
 installDashboard ()
 {
   header "Instaling Dashboard"
-
+  # Install Kubernetes Dashboard
   kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.0.0/aio/deploy/recommended.yaml
-
+  # Create dashboard account
   kubectl create serviceaccount dashboard-admin-sa
-
+  # bind the dashboard-admin-service-account service account to the cluster-admin role
   kubectl create clusterrolebinding dashboard-admin-sa --clusterrole=cluster-admin --serviceaccount=default:dashboard-admin-sa
-  
 
+  # display token
   header "Keep this Token to acces dashboard"
-
+  #kubectl describe secret $(kubectl get secrets | grep dashboard-admin-sa | cut -d' ' -f1)
   kubectl describe secret $(kubectl get secrets | grep dashboard-admin-sa | awk '{ print $1 }')
   header "Dashboard Access:"
   echo "kubectl proxy"
@@ -315,19 +410,20 @@ installDashboard ()
   footer
 }
 
+
 installPrometheus ()
 {
   header "Instaling Prometheus & Grafana"
-
+  # Install Prometheus
   helm install --namespace monitoring --create-namespace prometheus  \
   --set server.global.scrape_interval=30s prometheus-community/prometheus
-
+  # Install Grafana
   helm install --namespace monitoring --create-namespace grafana stable/grafana \
   --set sidecar.datasources.enabled=true --set sidecar.dashboards.enabled=true \
   --set sidecar.datasources.label=grafana_datasource \
   --set sidecar.dashboards.label=grafana_dashboard
-
-cat <<EOF | kubectl apply -f -
+  # Create Ingress controler using server certificates
+  cat <<EOF | kubectl apply -f -
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -401,34 +497,53 @@ isSelected()
 
 installAddons ()
 {
-  read_value "Install Ingress? ${yes_no}" "${INSTALL_INGRESS}"
+
+  read_value "Instala Provisionando Volume Persistente" "${INSTALL_PVP}"
+  if [ $(isSelected ${READ_VALUE}) = 1 ];
+  then
+      installPVP
+  fi
+
+  read_value "Instala Cert-Manager? ${yes_no}" "${INSTALL_CERTMANAGER}"
+  if [ $(isSelected ${READ_VALUE}) = 1 ];
+  then
+      installCertManager
+  fi
+
+  read_value "Instala Traefik Ingress? ${yes_no}" "${INSTALL_TRAEFIK}"
+  if [ $(isSelected ${READ_VALUE}) = 1 ];
+  then
+      installTraefik
+  fi
+
+  read_value "Instala Nginx Ingress? ${yes_no}" "${INSTALL_INGRESS}"
   if [ $(isSelected ${READ_VALUE}) = 1 ];
   then
       installIngress
   fi
 
-  read_value "Install Rancher? ${yes_no}" "${INSTALL_RANCHER}"
+  read_value "Instala Rancher? ${yes_no}" "${INSTALL_RANCHER}"
   if [ $(isSelected ${READ_VALUE}) = 1 ];
   then
       installRancher
   fi
 
-  read_value "Install Dashbard? ${yes_no}" "${INSTALL_DASHBOARD}"
+  read_value "Instala Dashbard? ${yes_no}" "${INSTALL_DASHBOARD}"
   if [ $(isSelected ${READ_VALUE}) = 1 ];
   then
       installDashboard
   fi
 
-  read_value "Install Prometheus? ${yes_no}" "${INSTALL_PROMETHEUS}"
+  read_value "Instala Prometheus? ${yes_no}" "${INSTALL_PROMETHEUS}"
   if [ $(isSelected ${READ_VALUE}) = 1 ];
   then
       installPrometheus
   fi
 }
 
-checkDependencies 
+checkDependencies
 
-#Retrieve config values 
+#Retrieve config values
 configValues
 
 # Todo Calico
