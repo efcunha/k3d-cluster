@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Instalation variables
-CLUSTER_DOMAIN=edson-devops.eti.br
+CLUSTER_DOMAIN=<COLOCAR O DOMINIO>
 API_PORT=6443
 CLUSTER_NAME=k3d-rancher
 READ_VALUE=
@@ -11,9 +11,13 @@ TRAEFIK_V2=Yes
 TRAEFIK_LABEL="app.kubernetes.io/instance=traefik"
 INSTALL_PVP=Yes
 INSTALL_CERTMANAGER=Yes
+INSTALL_NGINX=Yes
 INSTALL_TRAEFIK=No
-INSTALL_INGRESS=No
-INSTALL_RANCHER=No
+INSTALL_RANCHER=Yes
+INSTALL_JENKINS=No
+INSTALL_SONARQUBE=No
+INSTALL_HARBOR=No
+INSTALL_NEUVECTOR=No
 INSTALL_DASHBOARD=No
 INSTALL_PROMETHEUS=No
 
@@ -85,6 +89,10 @@ checkDependencies ()
 	    helm repo add jetstack https://charts.jetstack.io
         # Add Jenkins helm repos
 	    helm repo add jenkins https://raw.githubusercontent.com/jenkinsci/kubernetes-operator/master/chart
+		# Add Harbor helm repos
+		helm repo add harbor https://helm.goharbor.io
+		# Add Neuvector helm repos
+		helm repo add neuvector https://neuvector.github.io/neuvector-helm/
 	    # Update helm
         helm repo update
         #exit
@@ -310,10 +318,6 @@ installCertManager ()
 
   kubectl create namespace cattle-system
   sleep 5
-
-  # Create the certificate secret resource
-  kubectl -n cattle-system create secret tls tls-rancher-ingress --cert=certs/${CLUSTER_DOMAIN}.pem --key=certs/${CLUSTER_DOMAIN}-key.pem
-  sleep 5
 }
 
 installTraefik ()
@@ -334,10 +338,13 @@ installTraefik ()
 installIngress ()
 {
   header "Instalando Nginx Ingress"
+  kubectl -n ingress create secret tls tls-nginx-ingress --cert=/certs/tls.crt --key=/certs/tls.key 
+  kubectl -n ingress create secret generic tls-ca --from-file=/certscacerts.pem
+  
   # Install ingress with tls enabled providing certificates stored in namespace
   cat <<EOF | helm install --namespace ingress -f - ingress bitnami/nginx-ingress-controller
 extraArgs:
-  default-ssl-certificate: "ingress/nginx-server-certs"
+  default-ssl-certificate: "ingress/tls-nginx-ingress"
 EOF
   footer
   sleep 5
@@ -351,48 +358,542 @@ EOF
 installRancher ()
 {
   header "Instalando Rancher UI"
-  helm install rancher rancher-latest/rancher \
+  
+  kubectl -n cattle-system create secret tls tls-rancher-ingress --cert=/certs/tls.crt --key=/certs/tls.key 
+  kubectl -n cattle-system create secret generic tls-ca --from-file=/certscacerts.pem
+  
+  cat <<EOF | helm --install rancher rancher-stable/rancher \
    --namespace cattle-system \
-   --set hostname=rancher.${CLUSTER_DOMAIN} \
-   --set ingress.enabled=false \
-   --set tls=external \
+   --set hostname=rancher.$CLUSTER_DOMAIN \
+   --set ingress.tls.source=tls-rancher-ingress \
+   --set privateCA=true \
    --set replicas=1
-
-  # Create Ingress controler for Rancher
-  cat <<EOF | kubectl apply -f -
-  apiVersion: v1
-  kind: Service
-  metadata:
-    labels:
-      app: rancher
-    name: ranchernp
-    namespace: cattle-system
-  spec:
-    ports:
-    - name: http
-      nodePort: 30080
-      port: 80
-      protocol: TCP
-      targetPort: 80
-    - name: https-internal
-      nodePort: 30081
-      port: 443
-      protocol: TCP
-      targetPort: 443
-    selector:
-      app: rancher
-    type: NodePort
 EOF
+
   sleep 5
   kubectl -n cattle-system rollout status deploy/rancher
   kubectl -n cattle-system get deploy rancher
-  echo "acesso ao Rancher https://127.0.0.1:8901 ou https://rancher.xxxx.com:8901"
+  echo "acesso ao Rancher https://127.0.0.1/ ou https://rancher.xxxx.com/"
   footer
 }
 
+installJenkins ()
+{
+  header "Instalando Jenkins"
+    sleep 5
+  cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: jenkins
+EOF
+
+   sleep 5
+  cat <<EOF | kubectl apply -f -
+   apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  annotations:
+  managedFields:
+  name: jenkins-pv
+  namespace: jenkins
+provisioner: rancher.io/local-path
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+EOF
+
+  sleep 5
+  cat <<EOF | kubectl apply -f -
+  apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: jenkins-pv
+  namespace: jenkins
+spec:
+  storageClassName: jenkins-pv
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 20Gi
+  persistentVolumeReclaimPolicy: Retain
+  hostPath:
+    path: /data/jenkins-volume/
+EOF
+
+  sleep 5
+  cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jenkins
+  namespace: jenkins
+EOF
+
+  cat <<EOF | kubectl apply -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations:
+    rbac.authorization.kubernetes.io/autoupdate: "true"
+  labels:
+    kubernetes.io/bootstrapping: rbac-defaults
+  name: jenkins
+  namespace: jenkins
+rules:
+- apiGroups:
+  - '*'
+  resources:
+  - statefulsets
+  - services
+  - replicationcontrollers
+  - replicasets
+  - podtemplates
+  - podsecuritypolicies
+  - pods
+  - pods/log
+  - pods/exec
+  - podpreset
+  - poddisruptionbudget
+  - persistentvolumes
+  - persistentvolumeclaims
+  - jobs
+  - endpoints
+  - deployments
+  - deployments/scale
+  - daemonsets
+  - cronjobs
+  - configmaps
+  - namespaces
+  - events
+  - secrets
+  verbs:
+  - create
+  - get
+  - watch
+  - delete
+  - list
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+EOF
+
+  cat <<EOF | kubectl apply -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  annotations:
+    rbac.authorization.kubernetes.io/autoupdate: "true"
+  labels:
+    kubernetes.io/bootstrapping: rbac-defaults
+  name: jenkins
+  namespace: jenkins
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: jenkins
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: system:serviceaccounts:jenkins
+EOF
+
+sleep 5
+kubectl -n jenkins create secret tls tls-jenkins-ingress --cert=../certs/tls.crt --key=../certs/tls.key
+kubectl -n jenkins create secret generic tls-ca --from-file=../certs/cacerts.pem
+
+chart=jenkinsci/jenkins
+helm install jenkins -n jenkins -f jenkins-values.yaml $chart
+
+  cat <<EOF | kubectl apply -f -
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+  managedFields:
+  name: jenkinsingress
+  namespace: jenkins
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: jenkins.edson-devops.eti.br
+    http:
+      paths:
+      - backend:
+          service:
+            name: jenkins
+            port:
+              number: 8080
+        path: /
+        pathType: Prefix
+  tls:
+  - hosts:
+    - jenkins.edson-devops.eti.br
+    secretName: tls-jenkins-ingress
+EOF
+
+sleep 5
+footer
+jsonpath="{.data.jenkins-admin-password}"
+secret=$(kubectl get secret -n jenkins jenkins -o jsonpath=$jsonpath)
+echo $(echo $secret | base64 --decode)
+footer
+}
+
+installHarbor ()
+
+{
+  header "Instalando Harbor"
+
+  sleep 5
+  cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: harbor
+EOF
+
+  sleep 5
+  cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: harbor
+  annotations:
+    volume.beta.kubernetes.io/storage-class: local-path
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+EOF
+
+  cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: harbor
+  labels:
+    app: postgres
+spec:
+  ports:
+    - port: 5432
+  selector:
+    app: postgres
+  clusterIP: None
+EOF
+
+  cat <<EOF | kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: harbor
+  labels:
+    app: postgres
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      schedulerName: stork
+      containers:
+      - name: postgres
+        image: postgres:13.2
+        readinessProbe:
+          exec:
+            command: ["psql", "-w", "-U", "postgres", "-c", "SELECT 1"]
+          initialDelaySeconds: 15
+          timeoutSeconds: 2
+        livenessProbe:
+          exec:
+            command: ["psql", "-w", "-U", "postgres", "-c", "SELECT 1"]
+          initialDelaySeconds: 45
+          timeoutSeconds: 2
+        ports:
+        - containerPort: 5432
+          name: postgres
+        env:
+        - name: POSTGRES_USER
+          value: postgres
+        - name: POSTGRES_PASSWORD
+          value: password
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        volumeMounts:
+        - name: postgres-persistent-storage
+          mountPath: /var/lib/postgresql/data
+      volumes:
+      - name: postgres-persistent-storage
+        persistentVolumeClaim:
+          claimName: postgres-pvc
+EOF
+
+  sleep 5
+  cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+  namespace: harbor
+  annotations:
+    volume.beta.kubernetes.io/storage-class: local-path
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+EOF
+
+  cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: harbor
+spec:
+  ports:
+    - port: 6379
+      name: redis
+  clusterIP: None
+  selector:
+    app: redis
+EOF
+
+  cat <<EOF | kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: harbor
+  labels:
+    app: redis
+spec:
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      schedulerName: stork
+      containers:
+      - name: redis
+        image: redis:3.2-alpine
+        imagePullPolicy: Always
+        args: ["--requirepass", "password"]
+        ports:
+          - containerPort: 6379
+            name: redis
+        volumeMounts:
+          - name: redis-vol
+            mountPath: /data
+      volumes:
+      - name: redis-vol
+        persistentVolumeClaim:
+          claimName: redis-pvc
+EOF
+
+sleep 5
+DB_POD=$(kubectl get pods -n harbor -l app=postgres | awk '/postgres/{print$1}')
+kubectl exec $DB_POD -n harbor -- createdb -Upostgres registry
+kubectl exec $DB_POD -n harbor -- createdb -Upostgres clair
+kubectl exec $DB_POD -n harbor -- createdb -Upostgres notary_server
+kubectl exec $DB_POD -n harbor -- createdb -Upostgres notary_signer
+
+sleep 5
+kubectl -n harbor-system create secret tls tls-harbor-ingress --cert=../certs/tls.crt --key=../certs/tls.key
+kubectl -n harbor-system create secret generic tls-ca --from-file=../certs/cacerts.pem
+
+sleep 5
+  cat <<EOF | helm install harbor harbor/harbor \
+  --set redis.type=external \
+  --set redis.external.addr=redis.harbor:6379 \
+  --set redis.external.password=password \
+  --set database.type=external \
+  --set database.external.host=postgres.harbor \
+  --set database.external.username=postgres \
+  --set database.external.password=password \
+  --set persistence.persistentVolumeClaim.registry.storageClass=local-path \
+  --set persistence.persistentVolumeClaim.chartmuseum.storageClass=local-path \
+  --set persistence.persistentVolumeClaim.jobservice.storageClass=local-path \
+  --set persistence.persistentVolumeClaim.trivy.storageClass=local-path \
+  --set expose.tls.enabled=true \
+  --set expose.tls.secret.secretName=tls-harbor-ingress
+  --set externalURL=https://harbor.$CLUSTER_DOMAIN \
+  --set expose.ingress.hosts.core=ocr.$CLUSTER_DOMAIN \
+  --set expose.ingress.hosts.notary=notary.$CLUSTER_DOMAIN \
+  --namespace harbor
+EOF
+  
+}
+
+installNeuvector ()
+{
+  header "Instalando Neuvector"
+  cat <<EOF | kubectl apply -f -
+  apiVersion: v1
+kind: Namespace
+metadata:
+  name: neuvector
+EOF
+
+sleep 5
+kubectl -n neuvector create secret tls tls-neuvector-ingress --cert=../certs/tls.crt --key=../certs/tls.key
+kubectl -n neuvector create secret generic tls-ca --from-file=../certs/cacerts.pem
+
+sleep 5
+helm upgrade --install neuvector --namespace neuvector neuvector/core -f neuvector-values.yaml
+    
+}
+
+installSonarqube ()
+{
+  header "Instalando Sonarqube"
+  cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sonarqube
+EOF
+
+  cat <<EOF | kubectl apply -f -
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  annotations:
+  managedFields:
+  name: sonarqube-pv
+provisioner: rancher.io/local-path
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+EOF
+
+  cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: sonarqube-pv
+  namespace: sonarqube
+spec:
+  storageClassName: sonarqube-pv
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 10Gi
+  persistentVolumeReclaimPolicy: Retain
+  hostPath:
+    path: /data/sonarqube-volume/sonarqube
+EOF
+
+  cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: sonarqube-postgresql-pv
+  namespace: sonarqube
+spec:
+  storageClassName: sonarqube-pv
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 10Gi
+  persistentVolumeReclaimPolicy: Retain
+  hostPath:
+    path: /data/sonarqube-volume/postgresql
+EOF
+
+  cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+  finalizers:
+  labels:
+  managedFields:
+  name: sonarqube
+  namespace: sonarqube
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: sonarqube-pv
+  volumeMode: Filesystem
+  volumeName: sonarqube-pv
+status:
+  accessModes:
+  - ReadWriteOnce
+  capacity:
+    storage: 20Gi
+  phase: Bound
+EOF
+
+  cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+  finalizers:
+  labels:
+  managedFields:
+  name: data-sonarqube-postgresql-0
+  namespace: sonarqube
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 8Gi
+  storageClassName: sonarqube-pv
+  volumeMode: Filesystem
+  volumeName: sonarqube-postgresql-pv
+status:
+  accessModes:
+  - ReadWriteOnce
+  capacity:
+    storage: 20Gi
+  phase: Bound
+EOF
+
+sleep 5
+kubectl -n sonarqube create secret tls tls-sonarqube-ingress --cert=../certs/tls.crt --key=../certs/tls.key
+kubectl -n sonarqube create secret generic tls-ca --from-file=../certs/cacerts.pem
+
+sleep5
+helm install sonarqube -n sonarqube bitnami/sonarqube -f sonarqube-ingress.yaml
+
+sleep5
+footer
+echo Username: user
+echo Password: $(kubectl get secret --namespace sonarqube sonarqube -o jsonpath="{.data.sonarqube-password}" | base64 -d)
+footer
+}
+
+
 installDashboard ()
 {
-  header "Instaling Dashboard"
+  header "Instalando Dashboard"
   # Install Kubernetes Dashboard
   kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.0.0/aio/deploy/recommended.yaml
   # Create dashboard account
@@ -498,43 +999,67 @@ isSelected()
 installAddons ()
 {
 
-  read_value "Instala Provisionando Volume Persistente" "${INSTALL_PVP}"
+  read_value "Instalar Provisionando Volume Persistente" "${INSTALL_PVP}"
   if [ $(isSelected ${READ_VALUE}) = 1 ];
   then
       installPVP
   fi
 
-  read_value "Instala Cert-Manager? ${yes_no}" "${INSTALL_CERTMANAGER}"
+  read_value "Instalar Cert-Manager? ${yes_no}" "${INSTALL_CERTMANAGER}"
   if [ $(isSelected ${READ_VALUE}) = 1 ];
   then
       installCertManager
   fi
 
-  read_value "Instala Traefik Ingress? ${yes_no}" "${INSTALL_TRAEFIK}"
+  read_value "Instalar Traefik Ingress? ${yes_no}" "${INSTALL_TRAEFIK}"
   if [ $(isSelected ${READ_VALUE}) = 1 ];
   then
       installTraefik
   fi
 
-  read_value "Instala Nginx Ingress? ${yes_no}" "${INSTALL_INGRESS}"
+  read_value "Instalar Nginx Ingress? ${yes_no}" "${INSTALL_NGINX}"
   if [ $(isSelected ${READ_VALUE}) = 1 ];
   then
       installIngress
   fi
 
-  read_value "Instala Rancher? ${yes_no}" "${INSTALL_RANCHER}"
+  read_value "Instalar Rancher? ${yes_no}" "${INSTALL_RANCHER}"
   if [ $(isSelected ${READ_VALUE}) = 1 ];
   then
       installRancher
   fi
 
-  read_value "Instala Dashbard? ${yes_no}" "${INSTALL_DASHBOARD}"
+  read_value "Instalar Jenkins? ${yes_no}" "${INSTALL_JENKINS}"
+  if [ $(isSelected ${READ_VALUE}) = 1 ];
+  then
+      installJenkins
+  fi
+
+  read_value "Instalar Sonarqube? ${yes_no}" "${INSTALL_SONARQUBE}"
+  if [ $(isSelected ${READ_VALUE}) = 1 ];
+  then
+      installSonarqube
+  fi
+  
+  read_value "Instalar Harbor? ${yes_no}" "${INSTALL_HARBOR}"
+  if [ $(isSelected ${READ_VALUE}) = 1 ];
+  then
+      installHarbor
+  fi
+
+  read_value "Instalar Neuvector? ${yes_no}" "${INSTALL_NEUVECTOR}"
+  if [ $(isSelected ${READ_VALUE}) = 1 ];
+  then 
+      installNeuvector
+  fi
+  
+  read_value "Instalar Dashbard? ${yes_no}" "${INSTALL_DASHBOARD}"
   if [ $(isSelected ${READ_VALUE}) = 1 ];
   then
       installDashboard
   fi
 
-  read_value "Instala Prometheus? ${yes_no}" "${INSTALL_PROMETHEUS}"
+  read_value "Instalar Prometheus? ${yes_no}" "${INSTALL_PROMETHEUS}"
   if [ $(isSelected ${READ_VALUE}) = 1 ];
   then
       installPrometheus

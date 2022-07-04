@@ -21,9 +21,14 @@ Software instalado se não existir:
 O cluster será criado usando o k3d com os seguintes recursos:
 
 * Cluster Kubernetes com **n** Server e **m** Agents
-* Diretório do host montado como PersistentVolume (k3d-pv)
-* Ingress Nginx com certificados personalizados [**opcional**]
-* Painel do Kubernetes [**opcional**]
+* Diretório do host montado como PersistentVolume 
+* Cert-Manager
+* Ingress Nginx com certificados personalizados
+* Rancher v2.6.x [**opcional**]
+* Jenkins [**opcional**]
+* SonarQube [**opcional**]
+* Harhor [**opcional**]
+* NeuVector [**opcional** **É necessaria editar o arquivo "neuvector-values.yaml" e adicionar o DOMINIO**] 
 * Prometheus e Grafana [**opcional**]
 
 Todas as senhas e informações necessárias serão exibidas no terminal.
@@ -344,140 +349,6 @@ Isso iniciará a implantação do prometheus no cluster
 
 ![Lens](assets/lens.png)
 
-## Implantar persistence kubernetes cluster
-
-Crie um diretório em seu host onde o cluster Kubernetes ira persistir dados
-
-`k3d-cluster` montará o diretório ./k3dvol para todos os nós do cluster no diretório `/tmp/k3dvol`.
-
-Isso significa que todos os nós o compartilham como volume de persistência onde você pode armazenar seus dados persistentes.
-
-Uma vez que o cluster é criado, você pode criar `PersitentVolume` apontando o volume montado com
-
-
-```yaml
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: k3d-pv
-  labels:
-    type: local
-spec:
-  storageClassName: manual
-  capacity:
-    storage: 50Gi
-  accessModes:
-    - ReadWriteOnce
-  hostPath:
-    path: "/tmp/k3dvol"
-```
-
-```sh
-$> kubectl apply -f ./examples/pv/k3d-pv.yaml
-```
-
-e usá-lo em **`PersitentVolumeClaim`**
-
-### Criar Kubernetes Cluster com LoadBalancer
-
-**OBSERVAÇÃO**: os nós **`Master`** e **`Workers`** foram renomeados para **`Server`** e **`Agents`** respectivamente.
-
-![LoadBalancer Cluster](assets/k3d-cluster.webp)
-
-Crie um cluster Kubernetes.
-
-Para esta amostra manteremos o cluster simples, mas você pode definir "qualquer número" de Servers e Agentes, os limites são de bom senso e sua memória.
-
-Observe que estamos apontando a porta 443 no host para a porta 443 do Cluster Load Balancer. 
-
-Se você quiser usar http, você pode usar a porta 80. 
-
-```sh
-$ k3d cluster create dev-cluster \
---api-port 6443 \
---port 8443:443@loadbalancer  \
---port 8080:80@loadbalancer \
---volume $(pwd)/k3dvol:/tmp/k3dvol \
---servers 1 --agents 1
-```
-
-#### Mapeamento de portas
-
-* `--port 8080:80@loadbalancer` adicionará um mapeamento da porta 8080 do host local para a porta 80 do balanceador de carga, que fará proxy de solicitações para a porta 80 em todos os nós do agente
-
-* `--api-port 6443`: por padrão, nenhuma API-Port é exposta (sem mapeamento de porta do host). 
-É usado para ter o API-Server do k3s escutando na porta 6553 com essa porta mapeada para o sistema host. 
-Para que o balanceador de carga seja o ponto de acesso à API do Kubernetes, mesmo para clusters de vários servidores, você só precisa expor uma única porta de API. 
-O balanceador de carga cuidará do proxy de suas solicitações para o nó do servidor apropriado
-
-* `--port "32000-32767:32000-32767@loadbalancer"`
-Você também pode expor um intervalo NodePort (se quiser evitar o Ingress Controller).
-
-**Aviso**: mapear uma ampla variedade de portas pode levar algum tempo, e seu computador pode travar por algum tempo nesse processo.
-
-#### Exemplo Arquivo de configuração
-
-K3D permite criar cluster usando arquivos de configuração
-
-```sh
-k3d cluster create --config cluster-configuration.yaml
-```
-where `cluster-configuration.yaml`
-
-```yaml
-apiVersion: k3d.io/v1alpha2
-kind: Simple
-name: test-cluster
-servers: 3
-agents: 2
-kubeAPI:
-  hostIP: "0.0.0.0"
-  hostPort: "6446"
-image: rancher/k3s:latest
-volumes:
-  - volume: /my/path:/some/path
-    nodeFilters:
-      - all
-ports:
-  - port: 80:80
-    nodeFilters:
-      - loadbalancer
-  - port: 0.0.0.0:443:443
-    nodeFilters:
-      - loadbalancer
-env:
-  - envVar: bar=baz
-    nodeFilters:
-      - all
-labels:
-  - label: foo=bar
-    nodeFilters:
-      - server[0]
-      - loadbalancer
-registries:
-  create: true
-  use: []
-  config: |
-    mirrors:
-      "my.company.registry":
-        endpoint:
-          - http://my.company.registry:5000
-
-options:
-  k3d:
-    wait: true
-    timeout: "360s" # should be pretty high for multi-server clusters to allow for a proper startup routine
-    disableLoadbalancer: false
-    disableImageVolume: false
-  k3s:
-    extraServerArgs:
-      - --tls-san=127.0.0.1
-    extraAgentArgs: []
-  kubeconfig:
-    updateDefaultKubeconfig: true
-    switchCurrentContext: true
-```
-
 ### Gerenciar clusters
 
 Uma vez que o cluster é criado, podemos `iniciar`, `parar` ou até mesmo `apagá-los`
@@ -487,7 +358,6 @@ $ k3d cluster start <cluster-name>
 $ k3d cluster stop <cluster-name>
 $ k3d cluster delete <cluster-name>`
 ```
-
 
 ### Gerenciar nós de cluster
 
@@ -566,34 +436,7 @@ Criar ou excluir um registro interno local do kubernetes
 $ k3d registry create REGISTRY_NAME 
 $ k3d registry delete REGISTRY_NAME
 ```
-### Substituir controlador de entrada
 
-O K3D usa o Traefik 1.x versios como controlador do Ingress, devido ao Traefik 2.x ser bastante maduro e fornecer mais funcionalidades, precisamos fazer algum trabalho extra para usar o Traefik.
-
-Primeiro, criamos um novo arquivo `helm-ingress-traefik.yaml`
-
-```yaml
-# see https://rancher.com/docs/k3s/latest/en/helm/
-# see https://github.com/traefik/traefik-helm-chart
-apiVersion: helm.cattle.io/v1
-kind: HelmChart
-metadata:
-  name: ingress-controller-traefik
-  namespace: kube-system
-spec:
-  repo: https://helm.traefik.io/traefik
-  chart: traefik
-  version: 9.8.0
-  targetNamespace: kube-system
-```
-
-Agora podemos criar um novo cluster informando ao k3d para não implantar o traefik com
-`--k3s-server-arg '--no-deploy=traefik'` e use o helm chart anterior definido para implantar o novo Traefik Ingress Controller
-`--volume "$(pwd)/helm-ingress-traefik.yaml:/var/lib/rancher/k3s/server/manifests/helm-ingress-traefik.yaml"`
-
-```sh
-$ k3d cluster create traefik --k3s-server-arg '--no-deploy=traefik' --volume "$(pwd)/helm-ingress-traefik.yaml:/var/lib/rancher/k3s/server/manifests/helm-ingress-traefik.yaml"
-```
 ### Entrada de instalação com certificados personalizados
 
 Este script de instalação **`k3d-cluster`**, não instala o ingresso por padrão, mas fornece uma opção (ativada por padrão) para instalar o gráfico **`bitnami/ingress-nginx`** e definir os certificados de ingresso padrão.
@@ -811,19 +654,6 @@ Um bom cluster de painéis poderia ser:
 <https://grafana.com/grafana/dashboards/7249>
 <https://grafana.com/grafana/dashboards/13770>
 
-### Instalar portainer
-
-```sh
-$ kubectl apply -f https://raw.githubusercontent.com/portainer/portainer-k8s/master/portainer.yaml
-```
-Depois que o portainer for implantado, você poderá acessar por meio do balanceador de carga
-
-```sh
-$ kubectl -n portainer get svc
-NAME        TYPE           CLUSTER-IP      EXTERNAL-IP    PORT(S)                         AGE
-portainer   LoadBalancer   10.43.243.166   192.168.96.2   9000:31563/TCP,8000:30316/TCP   9m7s
-```
-
 ### Deploy simple applications
 
 ```sh
@@ -973,9 +803,7 @@ NAME                   READY   STATUS    RESTARTS   AGE
 echo-58fd7d9b6-x4rxj   1/1     Running   0          16s
 ```
 
-
-
-References
+# References
 <https://github.com/rancher/k3d$ 
 <https://k3s.io/$ <https://github.com/k3s-io/k3s$ 
 <https://en.sokube.ch/post/k3s-k3d-k8s-a-new-perfect-match-for-dev-and-test$ 
