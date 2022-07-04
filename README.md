@@ -28,7 +28,7 @@ O cluster será criado usando o k3d com os seguintes recursos:
 * Jenkins [**opcional**]
 * SonarQube [**opcional**]
 * Harhor [**opcional**]
-* NeuVector [**opcional** **É necessaria editar o arquivo "neuvector-values.yaml" e adicionar o DOMINIO**] 
+* NeuVector [**opcional**] - [**caso queira instalar é necessaria editar o arquivo "neuvector-values.yaml" e adicionar o DOMINIO**] 
 * Prometheus e Grafana [**opcional**]
 
 Todas as senhas e informações necessárias serão exibidas no terminal.
